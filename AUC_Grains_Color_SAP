@@ -1,0 +1,59 @@
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc
+from sklearn.preprocessing import label_binarize
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
+import numpy as np
+
+# 1. Example setup — replace with your actual data
+X = ...  # your polyphenol features
+y = ...  # grain color labels: ['red', 'brown', 'yellow', 'white']
+
+# Binarize the output for multiclass ROC
+class_names = ['red', 'brown', 'yellow', 'white']
+y_bin = label_binarize(y, classes=class_names)
+n_classes = y_bin.shape[1]
+
+# Scale if needed
+X = StandardScaler().fit_transform(X)
+
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(X, y_bin, test_size=0.3, random_state=42)
+
+# 2. Choose classifier
+clf = OneVsRestClassifier(XGBClassifier(use_label_encoder=False, eval_metric='mlogloss'))
+# Or: clf = OneVsRestClassifier(RandomForestClassifier(n_estimators=100))
+
+# 3. Fit model and predict probabilities
+clf.fit(X_train, y_train)
+y_score = clf.predict_proba(X_test)
+
+# 4. Compute ROC curve and AUC for each class
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+
+# 5. Plot all ROC curves
+plt.figure(figsize=(8, 6))
+colors = ['red', 'brown', 'gold', 'gray']
+for i, color in enumerate(colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label=f'{class_names[i]} (AUC = {roc_auc[i]:.2f})')
+
+plt.plot([0, 1], [0, 1], 'k--', lw=1)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate', fontsize=12)
+plt.ylabel('True Positive Rate', fontsize=12)
+plt.title('ROC Curves by Grain Color', fontsize=14)
+plt.legend(loc="lower right")
+plt.tight_layout()
+plt.show()
+
